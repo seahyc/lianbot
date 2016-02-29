@@ -6,14 +6,13 @@
 /* Change this to your Slack bot's OAuth token,
 * found in the Integrations tab */
 var SLACK_TOKEN = require('./config').slackToken;
-
 var https = require('https');
 var  _ws = require('ws');
-var r = require('./responses');
-
+var r = require('./quiet');
+var pewSaved = false;
 var counter = 1;
 var ws, slackID;
-
+/*
 https.get("https://slack.com/api/channels.create?token=" 
 + SLACK_TOKEN + "&name=trump", function(res) {
     var data = "";
@@ -26,35 +25,61 @@ https.get("https://slack.com/api/channels.create?token="
         console.log(data);
     });
 });
+*/
+
 
 https.get("https://slack.com/api/rtm.start?token=" + SLACK_TOKEN, function(res) {
     console.log("Connecting to Slack API...");
     var data = "";
     res.on('data', function(chunk) {
-        data += chunk;
+	data += chunk;
     }).on('error', function(err) {
     console.log("Failed to connect to Slack. "
         + "Did you put in your Slack bot's token in app.js?");
     }).on('end', function() {
         var rtm = JSON.parse(data);
-        ws = new _ws(rtm.url);
+	ws = new _ws(rtm.url);
         slackId = rtm.self.id;
         console.log("Logging into " + rtm.team.name + "'s Slack...");
         ws.on('open', function() {
-            goTrump(rtm.team.name, rtm.team.prefs.default_channels[0]);
+            	var pleasure_pavillion = rtm.groups.filter(function(gp){
+			return gp.name === 'pleasure-pavilion';
+		})
+		var group = pleasure_pavillion[0].id;
+		goTrump(rtm.team.name, group);
+		setInterval(function(){ chron(group)}, 900000);
         });
     })
 });
 
+function chron(group){
+	var hour = (new Date().getHours()+8)%24;
+	console.log(hour);
+	counter++;
+	if (hour>=9 || hour <=2) {
+		https.get('https://pew-back.herokuapp.com/');
+		if (hour!=2) {
+			pewSaved = false;
+		}
+		if (hour===2 && !pewSaved){	
+   			ws.send(JSON.stringify({
+        			"id": counter,
+        			"type": "message",
+        			"channel": group,
+        			"text": "@qinenbitch: save yourself"
+   	 		}));
+		}
+	}
+}
 
 
 function goTrump(teamName, channelID) {
-    console.log("Donald Trump has joined " + teamName + "!");
+    console.log("Lianbot has joined " + teamName + "!");
     ws.send(JSON.stringify({
         "id": counter,
         "type": "message",
         "channel": channelID,
-        "text": "LET'S MAKE " + teamName.toUpperCase() + " GREAT AGAIN."
+	"text": "Hullo ma boys, kurvy Kat is in da house. Meow! :-os: :looi: :seah: Glints wishes you Happy Chinese New Year! :2::0::1::6:"
     }));
     counter++;
 
@@ -74,6 +99,14 @@ function goTrump(teamName, channelID) {
 }
 
 function getResponse(message) {
+    console.log(message);
+    if (message.match(/<@U0D53C04X>|wake/)){
+	https.get('https://pew-back.herokuapp.com/');
+    }
+    if (message.match(/Thanks, My mind is safe now!/)){
+	pewSaved = true;
+	return 'Good to know';
+    }
     for(var i = 0; i < r.length; i++) {
         for(var j = 0; j < r[i].keywords.length; j++) {
             if(message.toLowerCase().indexOf(r[i].keywords[j]) != -1) {
